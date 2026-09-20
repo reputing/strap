@@ -5,6 +5,7 @@ import { Icon } from '@renderer/components/icons';
 import {
   Badge, Button, Confirm, Dot, Meter, Notice, Panel, Section, useToast
 } from '@renderer/components/ui';
+import { LaunchConfirm } from '@renderer/components/LaunchConfirm';
 import { PageHead, presetLabel, type ShellState } from '@renderer/app/Shell';
 import type { LaunchProgress } from '@shared/types';
 
@@ -17,6 +18,7 @@ export function Home({ shell }: { shell: ShellState }) {
   const { roblox, profile, interception } = shell;
   const toast = useToast();
   const [confirmRepair, setConfirmRepair] = useState(false);
+  const [confirmLaunch, setConfirmLaunch] = useState(false);
 
   const progress = useEventValue<'launch:progress'>('launch:progress', null);
   const sample = useEventValue('roblox:sample', null);
@@ -27,11 +29,19 @@ export function Home({ shell }: { shell: ShellState }) {
   const client = roblox?.processes[0] ?? null;
 
   const launch = useAction(async () => {
+    setConfirmLaunch(false);
     const result = await call('launch:start', {});
     if (result.ok) toast({ kind: 'success', title: 'Roblox is starting' });
     else toast({ kind: 'error', title: 'Could not launch Roblox', message: result.error.message });
     return result;
   });
+
+  // "Confirm before launching" shows what is about to be applied rather than
+  // asking a bare yes/no question.
+  const startLaunch = () => {
+    if (shell.settings?.confirmBeforeLaunch) setConfirmLaunch(true);
+    else void launch.run();
+  };
 
   const rescan = useAction(async () => {
     const r = await call('roblox:rescan', undefined);
@@ -119,7 +129,7 @@ export function Home({ shell }: { shell: ShellState }) {
                 <Button
                   variant="primary"
                   size="lg"
-                  onClick={() => void launch.run()}
+                  onClick={startLaunch}
                   pending={launch.pending || isLaunching(progress)}
                   disabled={!active || (running && !profile?.launcher.multiInstance)}
                   icon={<Icon.play size={14} />}
@@ -239,6 +249,15 @@ export function Home({ shell }: { shell: ShellState }) {
           />
         </div>
       </Section>
+
+      {confirmLaunch ? (
+        <LaunchConfirm
+          request={{}}
+          pending={launch.pending}
+          onConfirm={() => void launch.run()}
+          onClose={() => setConfirmLaunch(false)}
+        />
+      ) : null}
 
       {confirmRepair ? (
         <Confirm

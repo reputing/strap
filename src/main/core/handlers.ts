@@ -154,6 +154,34 @@ export function registerHandlers(ctx: HandlerContext): void {
   ipc.handle('roblox:clear-temp-cache', () => host.roblox.clearTemporaryCache());
 
   // ── launcher ───────────────────────────────────────────────────────────
+  ipc.handle('launch:preview', async (request) => {
+    const profile = profileFor(request?.profileId);
+    if (!profile.ok) return profile;
+
+    const install = host.roblox.active(request?.kind ?? profile.value.launcher.kind);
+    const modFiles = await host.mods.list(install);
+    const sets = host.assets.listSets();
+    const activeSets = sets.ok
+      ? sets.value.filter((s) => profile.value.assets.assetProfileIds.includes(s.id))
+      : [];
+
+    return Ok({
+      profileName: profile.value.name,
+      clientVersion: install?.clientVersion ?? install?.versionGuid ?? null,
+      fastFlagCount: Object.keys(profile.value.fastFlags).length,
+      modFileCount: modFiles.length,
+      assetRuleCount: activeSets.reduce((n, s) => n + s.ruleCount, 0),
+      interception: profile.value.assets.interception && host.config.get().interception.enabled,
+      capture: profile.value.assets.capture,
+      overlays: [
+        profile.value.overlay.crosshair.enabled ? 'crosshair' : null,
+        profile.value.overlay.hud.enabled ? 'performance HUD' : null
+      ].filter((v): v is string => v !== null),
+      priority: profile.value.launcher.priority,
+      filesTouched: install ? [FastFlagService.settingsPath(install)] : []
+    });
+  });
+
   ipc.handle('launch:start', async (request) => {
     const profile = profileFor(request?.profileId);
     if (!profile.ok) return profile;

@@ -56,6 +56,8 @@ export class ServiceHost extends EventEmitter {
   /** Milliseconds from process start to the first window being ready. */
   startupMs: number | null = null;
   lastLaunchMs: number | null = null;
+  /** Cached so a diagnostics report does not walk the mods folder inline. */
+  modFileCount = 0;
 
   private samplingRelease: (() => void) | null = null;
   private disposed = false;
@@ -147,6 +149,7 @@ export class ServiceHost extends EventEmitter {
     await this.backups.prune(20);
     await this.updates.prune();
 
+    void this.refreshModCount();
     void this.optimizer.probeHardware();
     if (settings.updates.checkAutomatically) {
       void this.updates.check(settings.updates.channel);
@@ -159,6 +162,13 @@ export class ServiceHost extends EventEmitter {
       profile: this.profiles.active().name,
       roblox: this.roblox.active()?.clientVersion ?? 'not detected'
     });
+  }
+
+  /** Re-counts the mod overlay files. Cheap, and only run when something asks. */
+  async refreshModCount(): Promise<number> {
+    const files = await this.mods.list(this.roblox.active());
+    this.modFileCount = files.length;
+    return this.modFileCount;
   }
 
   private wireEvents(): void {
@@ -197,6 +207,9 @@ export class ServiceHost extends EventEmitter {
     });
 
     this.launcher.on('progress', (progress) => this.ipc.emit('launch:progress', progress));
+    // Forwarded rather than acted on here: services never quit the application.
+    this.launcher.on('quit-requested', () => this.emit('quit-requested'));
+    this.launcher.on('exited', () => { void this.refreshModCount(); });
     this.launcher.on('interception-degraded', (error: { message: string }) => {
       this.ipc.emit('toast', {
         kind: 'warning',
@@ -213,6 +226,9 @@ export class ServiceHost extends EventEmitter {
     });
     this.optimizer.on('changed', (state) => this.ipc.emit('optimizer:changed', state));
     this.updates.on('changed', (state) => this.ipc.emit('updates:changed', state));
+    this.updates.on('checked', (at: number) => {
+      this.config.update({ updates: { ...this.config.get().updates, lastCheckedAt: at } });
+    });
 
     this.logger.on('record', (record) => this.ipc.emit('log:record', record));
   }
@@ -276,7 +292,9 @@ export class ServiceHost extends EventEmitter {
           fastFlagCount: Object.keys(profile.fastFlags).length,
           optimizerPreset: profile.optimizer.preset,
           appliedActions: this.optimizer.state().appliedActionIds.length,
-          modFileCount: 0,
+          // Refreshed by a cheap directory walk whenever the Modifications page
+          // or a report asks for it; see `refreshModCount`.
+          modFileCount: this.modFileCount,
           assetRuleCount: sets.ok ? sets.value.reduce((n, s) => n + s.ruleCount, 0) : 0
         };
       },

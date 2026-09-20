@@ -3,7 +3,7 @@ import type {
   AppSettings, AssetPage, AssetQuery, AssetRule, AssetRuleSet, BenchmarkResult,
   CacheStats, CachedAsset, CaptureEvent, CommandDescriptor, DiagnosticsReport,
   FlagDefinition, FlagDiffRow, FlagValidationIssue, HardwareProfile, InterceptionState,
-  LaunchOutcome, LaunchProgress, LaunchRequest, LogRecord, OptimizationAction,
+  LaunchOutcome, LaunchPreview, LaunchProgress, LaunchRequest, LogRecord, OptimizationAction,
   OptimizationPlan, OptimizerState, PresetId, Profile, ProcessSample, RestorePoint,
   RobloxState, SearchHit, ValidationReport
 } from './types';
@@ -40,6 +40,7 @@ export interface IpcRequests {
   'roblox:clear-temp-cache': { params: void; result: { filesRemoved: number; bytesFreed: number } };
 
   // ── launcher ───────────────────────────────────────────────────────────
+  'launch:preview': { params: LaunchRequest; result: LaunchPreview };
   'launch:start': { params: LaunchRequest; result: LaunchOutcome };
   'launch:cancel': { params: void; result: void };
   'launch:close-roblox': { params: { pid?: number }; result: { closed: number } };

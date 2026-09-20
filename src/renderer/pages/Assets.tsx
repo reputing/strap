@@ -93,6 +93,17 @@ function RuleSets({ shell }: { shell: ShellState }) {
     return r;
   });
 
+  /** Sets are evaluated in this order when two rules match the same asset. */
+  const reorder = async (all: AssetRuleSet[], from: number, to: number) => {
+    const ids = all.map((s) => s.id);
+    const [moved] = ids.splice(from, 1);
+    if (!moved) return;
+    ids.splice(to, 0, moved);
+    const r = await call('assets:set:reorder', ids);
+    if (r.ok) sets.refetch();
+    else toast({ kind: 'error', title: 'Could not reorder', message: r.error.message });
+  };
+
   const importSet = useAction(async () => {
     const r = await call('assets:set:import', {});
     if (r.ok) { sets.refetch(); setSelectedId(r.value.id); toast({ kind: 'success', title: `Imported “${r.value.name}”` }); }
@@ -130,9 +141,9 @@ function RuleSets({ shell }: { shell: ShellState }) {
           {(all) => (
             <Panel flush>
               <table className="table">
-                <thead><tr><th style={{ width: 40 }}>On</th><th>Name</th><th className="num">Rules</th><th>Description</th><th /></tr></thead>
+                <thead><tr><th style={{ width: 40 }}>On</th><th>Name</th><th className="num">Rules</th><th>Description</th><th style={{ width: 130 }}>Order</th><th /></tr></thead>
                 <tbody>
-                  {all.map((set) => (
+                  {all.map((set, index) => (
                     <tr
                       key={set.id}
                       aria-selected={set.id === selected?.id}
@@ -167,6 +178,25 @@ function RuleSets({ shell }: { shell: ShellState }) {
                       <td>{set.name}</td>
                       <td className="num">{count(set.ruleCount)}</td>
                       <td className="dim truncate">{set.description || '—'}</td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        <span className="flex" style={{ gap: 'var(--s1)' }}>
+                          <Button
+                            variant="ghost" size="icon" title="Move earlier"
+                            disabled={index === 0}
+                            onClick={() => void reorder(all, index, index - 1)}
+                          >
+                            <Icon.chevronDown size={12} className="flip" />
+                          </Button>
+                          <Button
+                            variant="ghost" size="icon" title="Move later"
+                            disabled={index === all.length - 1}
+                            onClick={() => void reorder(all, index, index + 1)}
+                          >
+                            <Icon.chevronDown size={12} />
+                          </Button>
+                          <span className="micro dim num">{index + 1}</span>
+                        </span>
+                      </td>
                       <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
                         <Button variant="ghost" size="icon" title="Delete" onClick={() => setDeleting(set)}>
                           <Icon.trash size={12} />

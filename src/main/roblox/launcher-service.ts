@@ -333,6 +333,14 @@ export class LauncherService extends EventEmitter {
     this.compensations = [];
     this.progress('exited', 'Roblox closed', null);
     this.emit('exited', { pid, profile });
+
+    // Restoring first, then quitting: leaving a modified client behind because
+    // the app exited too eagerly is exactly what the compensation design exists
+    // to prevent.
+    if (profile?.launcher.onExit === 'quit-blossom') {
+      this.log.info('Profile asks Blossom to quit once Roblox exits');
+      this.emit('quit-requested');
+    }
   }
 
   private async abort(): Promise<Result<never>> {

@@ -45,6 +45,9 @@ export class UpdateService extends EventEmitter {
   private manifest: ReleaseManifest | null = null;
   private stagedPath: string | null = null;
 
+  /** Set after every completed check, successful or not. */
+  private lastCheckedAt: number | null = null;
+
   constructor(
     private readonly paths: BlossomPaths,
     private readonly currentVersion: string,
@@ -52,6 +55,10 @@ export class UpdateService extends EventEmitter {
     private readonly log: ScopedLogger
   ) {
     super();
+  }
+
+  checkedAt(): number | null {
+    return this.lastCheckedAt;
   }
 
   current(): UpdateState {
@@ -71,6 +78,8 @@ export class UpdateService extends EventEmitter {
     }
 
     this.set({ phase: 'checking', progress: 0, error: null });
+    this.lastCheckedAt = Date.now();
+    this.emit('checked', this.lastCheckedAt);
 
     const fetched = await fetchJson(`${this.manifestUrl}?channel=${encodeURIComponent(channel)}`);
     if (!fetched.ok) {

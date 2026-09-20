@@ -5,6 +5,7 @@ import { Icon } from '@renderer/components/icons';
 import {
   Async, Badge, Button, Meter, Notice, Panel, Row, Section, Select, Toggle, useToast
 } from '@renderer/components/ui';
+import { LaunchConfirm } from '@renderer/components/LaunchConfirm';
 import { PageHead, type ShellState } from '@renderer/app/Shell';
 import type { LaunchProgress, Profile } from '@shared/types';
 
@@ -38,6 +39,7 @@ export function Launch({ shell }: { shell: ShellState }) {
   const profiles = useQuery('profiles:list', undefined, { on: ['profiles:changed'] });
   const progress = useEventValue<'launch:progress'>('launch:progress', null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
 
   const active = shell.profile;
   const chosenId = selectedId ?? active?.id ?? null;
@@ -52,6 +54,7 @@ export function Launch({ shell }: { shell: ShellState }) {
   );
 
   const launch = useAction(async (profileId: string) => {
+    setConfirming(false);
     const result = await call('launch:start', { profileId });
     if (result.ok) {
       toast({
@@ -163,7 +166,11 @@ export function Launch({ shell }: { shell: ShellState }) {
             icon={<Icon.play size={14} />}
             pending={launch.pending || busy}
             disabled={!installed || !chosenId || (running && !chosen?.launcher.multiInstance) || validation.data?.valid === false}
-            onClick={() => chosenId && void launch.run(chosenId)}
+            onClick={() => {
+              if (!chosenId) return;
+              if (shell.settings?.confirmBeforeLaunch) setConfirming(true);
+              else void launch.run(chosenId);
+            }}
           >
             Launch Roblox
           </Button>
@@ -175,6 +182,15 @@ export function Launch({ shell }: { shell: ShellState }) {
           ) : null}
         </div>
       </Section>
+
+      {confirming && chosenId ? (
+        <LaunchConfirm
+          request={{ profileId: chosenId }}
+          pending={launch.pending}
+          onConfirm={() => void launch.run(chosenId)}
+          onClose={() => setConfirming(false)}
+        />
+      ) : null}
 
       {chosen ? <LauncherOptions profile={chosen} /> : null}
 

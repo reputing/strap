@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron';
 import {
   IPC_EVENT_CHANNEL, IPC_REQUEST_CHANNEL,
-  type BlossomBridge, type IpcChannel, type IpcEventName, type IpcEventPayload, type IpcParams
+  type BlossomBridge, type IpcEventName, type IpcEventPayload
 } from '@shared/ipc';
 
 /**
@@ -11,18 +11,51 @@ import {
  * event. No Node, no `require`, no `ipcRenderer`, no module access. Everything
  * the UI can do is something a main-process handler chose to expose.
  */
+
+/**
+ * Event subscriptions are fanned out from a single IPC listener.
+ *
+ * The obvious implementation — one `ipcRenderer.on` per subscription — adds a
+ * listener to the same channel for every hook in the application, trips Node's
+ * max-listener warning at eleven, and grows with the component tree. One
+ * listener dispatching to a local map has neither problem.
+ */
+const listeners = new Map<string, Set<(payload: unknown) => void>>();
+
+ipcRenderer.on(IPC_EVENT_CHANNEL, (_event, name: string, payload: unknown) => {
+  const forEvent = listeners.get(name);
+  if (!forEvent) return;
+  // Copied before iterating so a listener that unsubscribes itself, or
+  // subscribes another, cannot disturb this dispatch.
+  for (const listener of [...forEvent]) {
+    try {
+      listener(payload);
+    } catch {
+      // One bad subscriber must not stop the others from being told.
+    }
+  }
+});
+
 const bridge: BlossomBridge = {
   invoke(channel, params) {
     return ipcRenderer.invoke(IPC_REQUEST_CHANNEL, channel, params);
   },
 
-  on(event, listener) {
-    const wrapped = (_e: unknown, name: string, payload: unknown) => {
-      if (name !== event) return;
-      listener(payload as IpcEventPayload<typeof event>);
+  on<E extends IpcEventName>(event: E, listener: (payload: IpcEventPayload<E>) => void) {
+    const wrapped = listener as (payload: unknown) => void;
+    let forEvent = listeners.get(event);
+    if (!forEvent) {
+      forEvent = new Set();
+      listeners.set(event, forEvent);
+    }
+    forEvent.add(wrapped);
+
+    return () => {
+      const current = listeners.get(event);
+      if (!current) return;
+      current.delete(wrapped);
+      if (current.size === 0) listeners.delete(event);
     };
-    ipcRenderer.on(IPC_EVENT_CHANNEL, wrapped);
-    return () => { ipcRenderer.removeListener(IPC_EVENT_CHANNEL, wrapped); };
   }
 };
 
@@ -44,5 +77,3 @@ contextBridge.exposeInMainWorld('blossomOverlay', {
     return () => { ipcRenderer.removeListener('overlay:sample', wrapped); };
   }
 });
-
-export type { IpcChannel, IpcParams, IpcEventName };

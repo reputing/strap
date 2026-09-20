@@ -92,3 +92,21 @@ export interface LaunchOutcome {
   startedAt: number;
   interception: 'off' | 'active' | 'degraded' | 'failed';
 }
+
+/**
+ * A summary of what a launch is about to do, shown before it happens when the
+ * user has asked to confirm launches.
+ */
+export interface LaunchPreview {
+  profileName: string;
+  clientVersion: string | null;
+  fastFlagCount: number;
+  modFileCount: number;
+  assetRuleCount: number;
+  interception: boolean;
+  capture: boolean;
+  overlays: string[];
+  priority: string;
+  /** Files Blossom will back up and then write. */
+  filesTouched: string[];
+}

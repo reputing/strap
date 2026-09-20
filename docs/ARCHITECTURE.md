@@ -90,8 +90,9 @@ from both is *knowledge of the integration points*, which is not copyrightable.
 
 ## 2. Technology
 
-- **Electron 33 + TypeScript.** Chosen explicitly. The cost of Electron is the
-  runtime footprint; the mitigations are in §11.
+- **Electron 33 + TypeScript.** Chosen explicitly by the brief. The cost of
+  Electron is the runtime footprint; the mitigations are in §11, and the
+  measured results are in `docs/PERFORMANCE.md`.
 - **React 19** for the renderer, with hand-written CSS using design tokens. No UI
   kit, no CSS framework — the visual language is ours and generic framework
   defaults are exactly what we are trying to avoid.
@@ -414,3 +415,43 @@ running executable is never overwritten in place.
 5. profiles are untouched.
 
 Nothing potentially incompatible is applied silently.
+
+---
+
+## 15. Decisions made during implementation
+
+Recorded here because each one was a change of direction, not a detail.
+
+**The native module is probed in a child process.** A native module built
+against a different Node ABI does not throw: `require` succeeds and the process
+dies the first time the module is used. That is a hard crash mid-startup that no
+`try`/`catch` can intercept, and it is reachable in production whenever an
+update changes Electron's ABI before the rebuild lands. So the first use happens
+in a short-lived child that opens an in-memory database and exits. If it
+crashes, we learn that safely and the index reports itself unavailable — which
+every caller already handles. The answer is cached against the runtime's ABI, so
+it costs one child process per Electron version.
+
+**The overlay shares geometry, not a component.** Sharing a React component
+between the crosshair designer and the overlay window was the obvious way to
+keep one source of truth, and it put a 613 kB chunk into a 400-pixel transparent
+window. Sharing the geometry instead — a pure function returning lines, a dot
+and a circle — keeps one source of truth while the designer renders JSX and the
+overlay renders SVG DOM with no framework at all.
+
+**Optimizations are written into the profile, not into Roblox.** The launcher is
+the single place that touches the client. Routing the optimizer through it means
+the optimizer inherits restore points and rollback for free, and the user can
+see a preset's complete effect before Roblox is ever started.
+
+**Interception reports itself degraded rather than assuming success.** The proxy
+is reached through environment variables in the launched client's process. If
+the client ignores them, the proxy simply sees no traffic. Rather than claim to
+be working, the engine checks after a grace period and marks itself degraded
+with a reason the UI shows.
+
+**The interception scope is a positive allow-list.** The first version was a
+deny-list of sensitive hosts with a negative lookahead for "not Roblox", which
+was both hard to read and wrong at the apex domain. A deny-list is one
+forgotten hostname away from being wrong; the allow-list is checked in one
+function and covered by tests that include substring-collision attempts.

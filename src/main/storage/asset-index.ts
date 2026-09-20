@@ -6,6 +6,7 @@ import type { ScopedLogger } from '@main/core/logger';
 import { applyMigrations, loadSqlite, type Database } from './database';
 import { ensureDir } from '@main/core/fs-utils';
 import { dirname } from 'node:path';
+import { probeNativeSqlite } from './native-probe';
 
 interface AssetRow {
   asset_id: string; asset_type: string; source_url: string | null; hash: string | null;
@@ -43,6 +44,18 @@ export class AssetIndex {
   constructor(private readonly log: ScopedLogger) {}
 
   async open(path: string): Promise<Result<void>> {
+    // A native module with the wrong ABI kills the process on first use rather
+    // than throwing, so it is exercised in a child process before being
+    // trusted here. See native-probe.ts.
+    const probe = await probeNativeSqlite(dirname(path), this.log);
+    if (!probe.ok) {
+      this.unavailableReason = probe.detail;
+      return Err('io-failure', 'The asset index is unavailable in this build.', {
+        remediation: 'Reinstall Blossom Strap. Everything except the asset cache will keep working.',
+        details: { reason: probe.detail }
+      });
+    }
+
     const factory = loadSqlite(this.log);
     if (!factory) {
       this.unavailableReason = 'The SQLite module could not be loaded.';

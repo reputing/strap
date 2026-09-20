@@ -10,7 +10,9 @@ import { ensureDir, exists, listFilesRecursive } from '@main/core/fs-utils';
 export interface ModFile {
   relativePath: string;
   sizeBytes: number;
+  /** The client currently holds a file of the same size at this path. */
   applied: boolean;
+  /** A restore point exists that would put the client's own file back. */
   backedUp: boolean;
 }
 
@@ -41,6 +43,14 @@ export class ModService {
     const files = await listFilesRecursive(this.paths.mods);
     const out: ModFile[] = [];
 
+    // One pass over the restore points, so "is this file recoverable" is a set
+    // lookup rather than a directory walk per file.
+    const backedUpPaths = new Set<string>();
+    for (const point of await this.backups.list()) {
+      if (point.restored) continue;
+      for (const entry of point.entries) backedUpPaths.add(entry.path.toLowerCase());
+    }
+
     for (const relativePath of files) {
       let sizeBytes = 0;
       try {
@@ -53,7 +63,7 @@ export class ModService {
         relativePath,
         sizeBytes,
         applied: target ? await sameSize(target, sizeBytes) : false,
-        backedUp: false
+        backedUp: target ? backedUpPaths.has(target.toLowerCase()) : false
       });
     }
     return out.sort((a, b) => a.relativePath.localeCompare(b.relativePath));

@@ -72,13 +72,30 @@
 .btn:active:not(:disabled) { transform: translateY(0.5px); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
+/*
+ * The accent carries state, not decoration. A primary button is tinted, so a
+ * page full of them still reads as one surface; the solid fill is reserved for
+ * the large primary action — in practice, Launch — of which there is at most
+ * one on screen.
+ */
 .btn.primary {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent);
+  font-weight: 600;
+}
+.btn.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  border-color: var(--accent);
+}
+
+.btn.primary.lg {
   background: var(--accent);
   border-color: transparent;
   color: var(--text-inverse);
-  font-weight: 600;
 }
-.btn.primary:hover:not(:disabled) { filter: brightness(1.08); background: var(--accent); }
+.btn.primary.lg:hover:not(:disabled) { filter: brightness(1.08); }
+.btn.primary.lg:disabled { filter: saturate(0.5); }
 
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-2); }
 .btn.ghost:hover:not(:disabled) { background: rgba(255,255,255,0.055); color: var(--text); }
@@ -510,3 +527,6 @@ kbd {
 .mt { margin-top: var(--s4); }
 .mb { margin-bottom: var(--s4); }
 .nowrap { white-space: nowrap; }
+
+/* Reuses one chevron for both directions rather than shipping two glyphs. */
+.flip { rotate: 180deg; }

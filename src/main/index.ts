@@ -86,9 +86,19 @@ async function main(): Promise<void> {
   registerHandlers(ctx);
   host.ipc.listen();
 
+  // A profile can ask Blossom to exit once the client it launched has closed.
+  host.on('quit-requested', () => { quitting = true; app.quit(); });
+
   hotkeys = new HotkeyController((action) => runHotkey(ctx, action), host.logger.scope('hotkeys'));
   hotkeys.apply(host.config.get());
-  host.config.on('changed', (settings) => hotkeys?.apply(settings));
+
+  // Settings that change something outside Blossom are re-applied whenever they
+  // change, not only at start, so turning one off actually undoes it.
+  host.config.on('changed', (settings) => {
+    hotkeys?.apply(settings);
+    void applyProtocolRegistration();
+    void applyRunAtLogin(settings.startWithWindows);
+  });
 
   tray = new TrayController(host, {
     show: showMainWindow,
@@ -100,6 +110,7 @@ async function main(): Promise<void> {
   tray.create();
 
   await applyProtocolRegistration();
+  await applyRunAtLogin(host.config.get().startWithWindows);
 
   const settings = host.config.get();
   if (!settings.startMinimised) createMainWindow();
@@ -256,6 +267,28 @@ async function applyProtocolRegistration(): Promise<void> {
       reason: e instanceof Error ? e.message : String(e)
     });
   }
+}
+
+/**
+ * Adds or removes Blossom from the current user's startup items.
+ *
+ * Per-user, never machine-wide: a launcher has no business writing to a
+ * registry key that affects everyone who signs in to the computer.
+ */
+async function applyRunAtLogin(enabled: boolean): Promise<void> {
+  if (!host) return;
+  const command = `"${process.execPath}"`;
+  const result = await host.platform.setRunAtLogin(enabled, command);
+  if (!result.ok) {
+    host.log.warn('Could not change the startup entry', { reason: result.error.message });
+    host.ipc.emit('toast', {
+      kind: 'warning',
+      title: 'Startup entry unchanged',
+      message: result.error.message
+    });
+    return;
+  }
+  host.log.info(enabled ? 'Blossom will start with Windows' : 'Blossom will not start with Windows');
 }
 
 /**

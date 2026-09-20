@@ -3,7 +3,7 @@ import { call, useAction, useDebounced, useQuery } from '@renderer/lib/api';
 import { bytes, count, dateTime, relative } from '@renderer/lib/format';
 import { Icon } from '@renderer/components/icons';
 import {
-  Async, Badge, Button, Confirm, Empty, Modal, Notice, Panel,
+  Async, Badge, Button, Confirm, Empty, Field, Modal, Notice, Panel,
   Select, useContextMenu, useToast
 } from '@renderer/components/ui';
 import { VirtualTable, type Column } from '@renderer/components/VirtualTable';
@@ -105,27 +105,27 @@ export function Cache() {
 
   const columns: Column<CachedAsset>[] = [
     {
-      key: 'assetId', header: 'Asset', width: '1.4fr', sortable: true,
+      key: 'assetId', header: 'Asset', width: 'minmax(104px, 1.6fr)', sortable: true,
       render: (a) => <span className="mono truncate">{a.assetId}</span>
     },
     {
-      key: 'assetType', header: 'Type', width: '90px',
+      key: 'assetType', header: 'Type', width: 'minmax(68px, 0.7fr)',
       render: (a) => <span className="dim">{a.assetType}</span>
     },
     {
-      key: 'size', header: 'Size', width: '90px', align: 'right', sortable: true,
+      key: 'size', header: 'Size', width: 'minmax(70px, 0.7fr)', align: 'right', sortable: true,
       render: (a) => <span className="num">{bytes(a.sizeBytes)}</span>
     },
     {
-      key: 'hits', header: 'Seen', width: '70px', align: 'right', sortable: true,
+      key: 'hits', header: 'Hits', width: 'minmax(62px, 0.5fr)', align: 'right', sortable: true,
       render: (a) => <span className="num dim">{count(a.hitCount)}</span>
     },
     {
-      key: 'lastSeen', header: 'Last seen', width: '120px', sortable: true,
+      key: 'lastSeen', header: 'Last seen', width: 'minmax(106px, 0.9fr)', sortable: true,
       render: (a) => <span className="dim">{relative(a.lastSeen)}</span>
     },
     {
-      key: 'origin', header: 'Origin', width: '110px',
+      key: 'origin', header: 'Origin', width: 'minmax(116px, 0.8fr)',
       render: (a) => <Badge>{a.origin}</Badge>
     }
   ];
@@ -142,7 +142,7 @@ export function Cache() {
   }
 
   return (
-    <div className="page" style={{ maxWidth: 1240 }}>
+    <div className="page" style={{ maxWidth: 1320 }}>
       <PageHead
         eyebrow="Assets"
         title="Cache"
@@ -226,7 +226,7 @@ export function Cache() {
           </Async>
         </div>
 
-        <div style={{ width: 380, flex: 'none' }}>
+        <div style={{ width: 330, flex: 'none' }}>
           {selected ? (
             <Inspector
               asset={selected}
@@ -273,6 +273,7 @@ function Inspector({
   asset, onClose, onExport, onDelete
 }: { asset: CachedAsset; onClose: () => void; onExport: () => void; onDelete: () => void }) {
   const toast = useToast();
+  const [replacing, setReplacing] = useState(false);
   const replacement = useQuery('assets:rule:test', { assetId: asset.assetId }, { deps: [asset.assetId] });
 
   return (
@@ -309,6 +310,7 @@ function Inspector({
       </Panel>
 
       <div className="btn-row">
+        <Button variant="primary" icon={<Icon.sliders size={13} />} onClick={() => setReplacing(true)}>Replace</Button>
         <Button icon={<Icon.download size={13} />} onClick={onExport}>Export</Button>
         <Button
           icon={<Icon.copy size={13} />}
@@ -325,7 +327,142 @@ function Inspector({
         </Button>
         <Button variant="danger" icon={<Icon.trash size={13} />} onClick={onDelete}>Delete</Button>
       </div>
+
+      {replacing ? (
+        <ReplaceModal
+          asset={asset}
+          onClose={() => setReplacing(false)}
+          onSaved={() => { setReplacing(false); replacement.refetch(); }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+/**
+ * Creates a replacement rule straight from the inspector — the common case is
+ * "I found this asset in the cache and want to change it", and making the user
+ * copy an id over to the Assets page for that would be silly.
+ */
+function ReplaceModal({
+  asset, onClose, onSaved
+}: { asset: CachedAsset; onClose: () => void; onSaved: () => void }) {
+  const toast = useToast();
+  const sets = useQuery('assets:sets', undefined);
+  const [setId, setSetId] = useState('');
+  const [action, setAction] = useState<'replace-asset' | 'replace-file' | 'remove'>('replace-asset');
+  const [target, setTarget] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!setId && sets.data?.length) setSetId(sets.data[0]!.id);
+  }, [sets.data, setId]);
+
+  const save = useAction(async () => {
+    const r = await call('assets:rule:upsert', {
+      setId,
+      source: asset.assetId,
+      action,
+      target: action === 'remove' ? '' : target.trim(),
+      assetType: asset.assetType,
+      enabled: true,
+      priority: 0,
+      notes: `Created from the cache browser.`
+    });
+    if (r.ok) { toast({ kind: 'success', title: 'Replacement rule created' }); onSaved(); }
+    else setError(r.error.message);
+    return r;
+  });
+
+  const pickFile = async () => {
+    const r = await call('cache:import-file', { assetId: asset.assetId, path: '' });
+    if (r.ok) toast({ kind: 'success', title: 'File imported into the cache' });
+    else if (r.error.code !== 'cancelled') setError(r.error.message);
+  };
+
+  return (
+    <Modal
+      title={`Replace ${asset.assetId}`}
+      description="Adds a rule to one of your rule sets. It applies while a profile that includes that set is running."
+      onClose={onClose}
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            pending={save.pending}
+            disabled={!setId || (action !== 'remove' && !target.trim())}
+            onClick={() => void save.run()}
+          >
+            Create rule
+          </Button>
+        </>
+      }
+    >
+      {!sets.data?.length ? (
+        <Notice tone="warn" title="No rule sets yet">
+          Create a rule set on the Assets page first — rules have to live in one.
+        </Notice>
+      ) : (
+        <div className="col" style={{ gap: 'var(--s5)' }}>
+          <Field label="Rule set">
+            {() => (
+              <Select
+                ariaLabel="Rule set"
+                value={setId}
+                options={sets.data!.map((s) => ({ value: s.id, label: s.name }))}
+                onChange={setSetId}
+              />
+            )}
+          </Field>
+
+          <Field label="Action">
+            {() => (
+              <Select
+                ariaLabel="Action"
+                value={action}
+                options={[
+                  { value: 'replace-asset', label: 'Replace with another asset' },
+                  { value: 'replace-file', label: 'Replace with a local file' },
+                  { value: 'remove', label: 'Remove entirely' }
+                ]}
+                onChange={(v) => setAction(v as typeof action)}
+              />
+            )}
+          </Field>
+
+          {action !== 'remove' ? (
+            <Field
+              label="Target"
+              error={error}
+              hint={action === 'replace-asset' ? 'A numeric asset id.' : 'A full path to a file on this machine.'}
+            >
+              {(id) => (
+                <div className="flex" style={{ gap: 'var(--s2)' }}>
+                  <input
+                    id={id}
+                    className="input mono"
+                    style={{ flex: 1 }}
+                    value={target}
+                    spellCheck={false}
+                    autoFocus
+                    onChange={(e) => { setTarget(e.target.value); setError(null); }}
+                  />
+                  {action === 'replace-file' ? (
+                    <Button onClick={() => void pickFile()} icon={<Icon.folder size={13} />}>Import…</Button>
+                  ) : null}
+                </div>
+              )}
+            </Field>
+          ) : null}
+
+          <Notice tone="info">
+            If the replacement cannot be served, Blossom serves the original asset. A rule can never
+            break the client.
+          </Notice>
+        </div>
+      )}
+    </Modal>
   );
 }
 

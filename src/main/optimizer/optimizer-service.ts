@@ -64,7 +64,9 @@ export class OptimizerService extends EventEmitter {
       preset: profile.optimizer.preset,
       appliedActionIds: this.appliedActionIds,
       appliedAt: this.appliedAt,
-      restorePointId: null,
+      // Optimizations are written into the profile, and `undo` replays the
+      // snapshot taken before the last apply rather than a file backup.
+      restorePointId: this.undoSnapshot ? `profile:${this.undoSnapshot.profileId}` : null,
       hardware: this.hardware
     };
   }

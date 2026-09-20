@@ -6,7 +6,8 @@ import type { RobloxChannel, RobloxInstallation, RobloxKind, RobloxState } from 
 import { Err, Ok, type Result } from '@shared/result';
 import type { BlossomPaths } from '@main/core/paths';
 import type { ScopedLogger } from '@main/core/logger';
-import { dirSize } from '@main/core/fs-utils';
+import { dirSize, exists, writeFileAtomic } from '@main/core/fs-utils';
+import { stripBlock } from '@main/interception/trust-store';
 import { compareClientVersions, discoverInstallations, selectActive } from './discovery';
 import { fetchLatestClientVersion, type ClientVersionInfo } from './client-version';
 import type { ProcessMonitor } from './process-monitor';
@@ -176,11 +177,27 @@ export class RobloxService extends EventEmitter {
     const restored: string[] = [];
 
     for (const install of this.installations) {
+      // The flag override file is Blossom's own; deleting it returns the client
+      // to Roblox's values.
       const settings = join(install.directory, 'ClientSettings', 'ClientAppSettings.json');
       try {
-        await fs.rm(settings, { force: true });
-        removed.push(settings);
-      } catch { /* nothing there, or Roblox has it open */ }
+        if (await exists(settings)) {
+          await fs.rm(settings, { force: true });
+          removed.push(settings);
+        }
+      } catch { /* Roblox has it open; the next repair will get it */ }
+
+      // The certificate bundle is Roblox's own file that Blossom appended to,
+      // so it is restored rather than removed.
+      const bundle = join(install.directory, 'ssl', 'cacert.pem');
+      try {
+        const pem = await fs.readFile(bundle, 'utf8');
+        const cleaned = stripBlock(pem);
+        if (cleaned !== pem) {
+          await writeFileAtomic(bundle, cleaned);
+          restored.push(bundle);
+        }
+      } catch { /* no bundle, or nothing of ours in it */ }
     }
 
     this.log.info('Repair finished', { removed: removed.length, restored: restored.length });

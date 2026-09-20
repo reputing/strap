@@ -3,6 +3,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 export interface Column<T> {
   key: string;
   header: string;
+  /**
+   * A grid track. Always give flexible columns a `minmax(<floor>, <n>fr)`:
+   * a bare `fr` resolves against the header's content in the header grid and
+   * against nothing in the body grid (whose cells clip), so the two drift
+   * apart and a narrow container collapses the flexible column to a few pixels.
+   */
   width: string;
   align?: 'left' | 'right';
   sortable?: boolean;
@@ -66,13 +72,21 @@ export function VirtualTable<T>({
   }, [rows.length, rowHeight, scrollTop]);
 
   const template = columns.map((c) => c.width).join(' ');
+  // The sum of every column's floor. Below this the table scrolls sideways
+  // rather than crushing its content into ellipses.
+  const minWidth = columns.reduce((total, column) => {
+    const floor = /minmax\(\s*(\d+)px/.exec(column.width)?.[1];
+    const fixed = /^(\d+)px$/.exec(column.width.trim())?.[1];
+    return total + Number(floor ?? fixed ?? 80);
+  }, 0);
 
   return (
-    <div className="panel flush">
+    <div className="panel flush" style={{ overflowX: 'auto' }}>
       <div
         style={{
           display: 'grid',
           gridTemplateColumns: template,
+          minWidth,
           borderBottom: '1px solid var(--line)',
           background: 'var(--surface)'
         }}
@@ -86,6 +100,12 @@ export function VirtualTable<T>({
             style={{
               all: 'unset',
               boxSizing: 'border-box',
+              // Without min-width:0 a grid item refuses to shrink below its
+              // content, which is exactly what pushed the header out of step
+              // with the body.
+              minWidth: 0,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
               padding: 'var(--s3) var(--s4)',
               fontSize: 'var(--t-micro)',
               letterSpacing: '0.04em',
@@ -102,7 +122,7 @@ export function VirtualTable<T>({
         ))}
       </div>
 
-      <div className="vlist" style={{ height }} onScroll={onScroll} ref={viewportRef}>
+      <div className="vlist" style={{ height, minWidth }} onScroll={onScroll} ref={viewportRef}>
         <div className="vlist-inner" style={{ height: rows.length * rowHeight }}>
           {slice.map((row, index) => {
             const key = getKey(row);
@@ -132,6 +152,7 @@ export function VirtualTable<T>({
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: column.align === 'right' ? 'flex-end' : 'flex-start',
+                      minWidth: 0,
                       overflow: 'hidden',
                       whiteSpace: 'nowrap',
                       textOverflow: 'ellipsis',
