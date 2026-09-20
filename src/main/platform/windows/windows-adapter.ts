@@ -119,39 +119,7 @@ export class WindowsAdapter implements PlatformAdapter {
   async queryHardware(): Promise<Result<HardwareProfile>> {
     const r = await this.agent.request<Record<string, unknown>>('hardware', {}, 25_000);
     if (!r.ok) return r;
-    const v = r.value;
-    const gpusRaw = v['gpus'];
-    const gpus = (Array.isArray(gpusRaw) ? gpusRaw : gpusRaw ? [gpusRaw] : [])
-      .map((g) => g as Record<string, unknown>)
-      .map((g) => ({
-        model: String(g['model'] ?? 'Unknown'),
-        vendor: String(g['vendor'] ?? 'Unknown'),
-        // Win32_VideoController reports AdapterRAM as a signed 32-bit value, so
-        // anything at or above 4 GB comes back wrong. Report null rather than a lie.
-        memoryBytes: toGpuMemory(g['memoryBytes'])
-      }));
-
-    const totalBytes = Number(v['memoryTotal']) || 0;
-    const threads = Number(v['cpuThreads']) || 0;
-    const profile: HardwareProfile = {
-      cpu: {
-        model: String(v['cpuModel'] ?? 'Unknown'),
-        cores: Number(v['cpuCores']) || 0,
-        threads,
-        speedMhz: Number(v['cpuMhz']) || null
-      },
-      memory: { totalBytes, freeBytes: Number(v['memoryFree']) || 0 },
-      gpu: gpus,
-      os: {
-        name: String(v['osName'] ?? 'Windows'),
-        version: String(v['osVersion'] ?? ''),
-        build: v['osBuild'] ? String(v['osBuild']) : null,
-        arch: String(v['osArch'] ?? 'x64')
-      },
-      tier: classifyTier(totalBytes, threads, gpus),
-      probedAt: Date.now()
-    };
-    return Ok(profile);
+    return Ok(parseHardware(r.value));
   }
 
   async getMainWindowBounds(pid: number): Promise<Result<WindowBounds | null>> {
@@ -196,6 +164,62 @@ function toGpuMemory(raw: unknown): number | null {
   // The classic 4 GB wrap-around; treat it as unknown.
   if (n === 4_293_918_720 || n >= 2 ** 32) return null;
   return n;
+}
+
+/**
+ * Turns the agent's hardware reply into a profile.
+ *
+ * The GPU list arrives from `Get-CimInstance Win32_VideoController`, and how
+ * PowerShell renders it depends on how many adapters the machine has: one
+ * adapter can come back as a bare object rather than a list, and an older
+ * agent wrapped the list in a second list. Flattening one level costs nothing
+ * and stops a real adapter from being read as an empty object — which is how
+ * every machine used to report its GPU as "Unknown", and why the tier below
+ * could not tell integrated graphics from discrete.
+ */
+export function parseHardware(v: Record<string, unknown>): HardwareProfile {
+  const gpus = flatten(v['gpus'])
+    .filter((g): g is Record<string, unknown> => typeof g === 'object' && g !== null && !Array.isArray(g))
+    .map((g) => ({
+      model: text(g['model']),
+      vendor: text(g['vendor']),
+      // Win32_VideoController reports AdapterRAM as a signed 32-bit value, so
+      // anything at or above 4 GB comes back wrong. Report null rather than a lie.
+      memoryBytes: toGpuMemory(g['memoryBytes'])
+    }))
+    .filter((g) => g.model !== 'Unknown' || g.vendor !== 'Unknown');
+
+  const totalBytes = Number(v['memoryTotal']) || 0;
+  const threads = Number(v['cpuThreads']) || 0;
+  return {
+    cpu: {
+      model: text(v['cpuModel']),
+      cores: Number(v['cpuCores']) || 0,
+      threads,
+      speedMhz: Number(v['cpuMhz']) || null
+    },
+    memory: { totalBytes, freeBytes: Number(v['memoryFree']) || 0 },
+    gpu: gpus,
+    os: {
+      name: String(v['osName'] ?? 'Windows'),
+      version: String(v['osVersion'] ?? ''),
+      build: v['osBuild'] ? String(v['osBuild']) : null,
+      arch: String(v['osArch'] ?? 'x64')
+    },
+    tier: classifyTier(totalBytes, threads, gpus),
+    probedAt: Date.now()
+  };
+}
+
+function flatten(raw: unknown): unknown[] {
+  if (raw === null || raw === undefined) return [];
+  if (!Array.isArray(raw)) return [raw];
+  return raw.flatMap((entry) => (Array.isArray(entry) ? entry : [entry]));
+}
+
+function text(raw: unknown): string {
+  const s = typeof raw === 'string' ? raw.trim() : '';
+  return s || 'Unknown';
 }
 
 /**

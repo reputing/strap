@@ -127,6 +127,7 @@ export function Profiles({ shell }: { shell: ShellState }) {
                   onExport={() => void exportProfile.run(selected.id)}
                   onDuplicate={() => void duplicate.run(selected)}
                   onDelete={() => setDeleting(selected)}
+                  onForked={(id) => setSelectedId(id)}
                 />
               ) : (
                 <Empty title="Select a profile" />
@@ -166,7 +167,7 @@ export function Profiles({ shell }: { shell: ShellState }) {
 }
 
 function ProfileDetail({
-  profile, isActive, validation, onActivate, onExport, onDuplicate, onDelete
+  profile, isActive, validation, onActivate, onExport, onDuplicate, onDelete, onForked
 }: {
   profile: Profile;
   isActive: boolean;
@@ -175,6 +176,7 @@ function ProfileDetail({
   onExport: () => void;
   onDuplicate: () => void;
   onDelete: () => void;
+  onForked: (id: string) => void;
 }) {
   const toast = useToast();
 
@@ -182,6 +184,10 @@ function ProfileDetail({
     const r = await call('profiles:update', { id: profile.id, patch: changes });
     if (!r.ok) toast({ kind: 'error', title: 'Could not save', message: r.error.message });
     else if (r.value.id !== profile.id) {
+      // Editing a built-in forks it. Follow the fork, or the next edit would
+      // fork the built-in all over again and leave a pile of near-identical
+      // copies behind.
+      onForked(r.value.id);
       toast({ kind: 'info', title: `Copied to “${r.value.name}”`, message: 'Built-in profiles are never edited in place.' });
     }
   };

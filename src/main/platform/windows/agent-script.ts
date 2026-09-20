@@ -104,7 +104,7 @@ function Get-Hardware {
     osVersion = $os.Version
     osBuild = $os.BuildNumber
     osArch = $os.OSArchitecture
-    gpus = ,$gpus
+    gpus = @($gpus)
   }
 }
 
