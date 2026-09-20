@@ -1,0 +1,46 @@
+appId: dev.blossomstrap.app
+productName: Blossom Strap
+copyright: Blossom Strap
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+  - '!**/*.map'
+  - '!node_modules/**/{test,__tests__,tests,example,examples,doc,docs}/**'
+
+# better-sqlite3 is native and must be rebuilt against Electron's ABI.
+npmRebuild: true
+asar: true
+asarUnpack:
+  - '**/node_modules/better-sqlite3/**'
+
+extraResources:
+  - from: resources/icon.png
+    to: icon.png
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: BlossomStrap-${version}-${arch}.${ext}
+  # Blossom writes only to the user's own profile directory, so it never needs
+  # to ask for administrator rights.
+  requestedExecutionLevel: asInvoker
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Blossom Strap
+  # Uninstalling must leave nothing behind that Blossom created in Roblox's
+  # folders; the application removes those itself on first-run reconciliation.
+  deleteAppDataOnUninstall: false
+
+publish: null

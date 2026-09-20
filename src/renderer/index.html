@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en" data-accent="blossom" data-density="comfortable">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      The renderer loads nothing from the network: no fonts, no analytics, no
+      remote scripts. The CSP below is the enforcement of that.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' data: blob:; font-src 'self'; connect-src 'self'"
+    />
+    <title>Blossom Strap</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./main.tsx"></script>
+  </body>
+</html>

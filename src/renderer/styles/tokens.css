@@ -1,0 +1,92 @@
+/*
+ * Blossom Strap — design tokens.
+ *
+ * The visual language is a dark technical utility with a blossom accent, not a
+ * dashboard. Concretely that means: thin hairline borders instead of shadows,
+ * a 6px radius ceiling instead of pills, one accent used sparingly for state
+ * rather than decoration, and hierarchy carried by type and spacing rather than
+ * by wrapping everything in a card.
+ */
+
+:root {
+  /* Surfaces — charcoal with a violet undertone, four steps only. */
+  --bg:            #0e0d13;
+  --bg-rail:       #0b0a10;
+  --surface:       #15141c;
+  --surface-2:     #1a1922;
+  --surface-3:     #201f2a;
+  --surface-input: #100f16;
+
+  /* Hairlines. Borders do the work shadows would do elsewhere. */
+  --line:          rgba(255, 255, 255, 0.068);
+  --line-strong:   rgba(255, 255, 255, 0.12);
+  --line-accent:   rgba(255, 111, 168, 0.35);
+
+  /* Type */
+  --text:          #e9e7f2;
+  --text-2:        #9c98ad;
+  --text-3:        #6a667a;
+  --text-inverse:  #14121a;
+
+  /* Accent — blossom pink with a violet partner. Used for state, not decoration. */
+  --accent:        #ff6fa8;
+  --accent-soft:   rgba(255, 111, 168, 0.14);
+  --accent-line:   rgba(255, 111, 168, 0.4);
+  --accent-2:      #a97bff;
+  --accent-2-soft: rgba(169, 123, 255, 0.14);
+
+  /* Status */
+  --ok:            #4ad38a;
+  --ok-soft:       rgba(74, 211, 138, 0.13);
+  --warn:          #f0b354;
+  --warn-soft:     rgba(240, 179, 84, 0.13);
+  --danger:        #ff6b6b;
+  --danger-soft:   rgba(255, 107, 107, 0.13);
+  --info:          #5cb8ff;
+  --info-soft:     rgba(92, 184, 255, 0.13);
+
+  /* Spacing — a 4px grid, named so layout stays consistent across pages. */
+  --s1: 4px;  --s2: 6px;  --s3: 8px;  --s4: 12px;
+  --s5: 16px; --s6: 20px; --s7: 28px; --s8: 40px;
+
+  /* Radii — deliberately small. Nothing here is a pill. */
+  --r-sm: 3px;
+  --r:    5px;
+  --r-lg: 7px;
+
+  /* Type scale — compact, one display size, no giant headings. */
+  --font: 'Inter var', 'Inter', 'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', 'Cascadia Mono', 'SF Mono', ui-monospace, Consolas, monospace;
+  --t-display: 19px;
+  --t-title:   14px;
+  --t-body:    13px;
+  --t-small:   12px;
+  --t-micro:   11px;
+
+  --rail-w: 196px;
+  --titlebar-h: 34px;
+  --statusbar-h: 26px;
+  --row-h: 30px;
+
+  --ease: cubic-bezier(0.32, 0.72, 0, 1);
+  --fast: 110ms var(--ease);
+  --med:  180ms var(--ease);
+}
+
+/* Accent variants, switched from Appearance. */
+:root[data-accent='violet'] { --accent: #a97bff; --accent-soft: rgba(169,123,255,0.14); --accent-line: rgba(169,123,255,0.4); --accent-2: #ff6fa8; }
+:root[data-accent='rose']   { --accent: #ff7b7b; --accent-soft: rgba(255,123,123,0.14); --accent-line: rgba(255,123,123,0.4); --accent-2: #ffab6f; }
+:root[data-accent='mint']   { --accent: #4fd6b0; --accent-soft: rgba(79,214,176,0.14);  --accent-line: rgba(79,214,176,0.4);  --accent-2: #5cb8ff; }
+:root[data-accent='amber']  { --accent: #f0b354; --accent-soft: rgba(240,179,84,0.14);  --accent-line: rgba(240,179,84,0.4);  --accent-2: #ff8f6f; }
+
+/* Compact density tightens rows and padding without changing the type scale. */
+:root[data-density='compact'] {
+  --s4: 9px; --s5: 12px; --s6: 15px; --s7: 20px; --s8: 28px;
+  --row-h: 26px;
+}
+
+/* Honour the OS setting as well as the in-app one. */
+@media (prefers-reduced-motion: reduce) {
+  :root { --fast: 1ms linear; --med: 1ms linear; }
+}
+:root[data-reduce-motion='true'] { --fast: 1ms linear; --med: 1ms linear; }

@@ -13,6 +13,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     resolve: { alias },
     build: {
+      minify: 'esbuild',
       rollupOptions: {
         input: {
           index: resolve('src/main/index.ts'),
@@ -25,6 +26,7 @@ export default defineConfig({
     plugins: [externalizeDepsPlugin()],
     resolve: { alias },
     build: {
+      minify: 'esbuild',
       rollupOptions: { input: { index: resolve('src/preload/index.ts') } }
     }
   },
@@ -33,10 +35,27 @@ export default defineConfig({
     resolve: { alias },
     plugins: [react()],
     build: {
+      // electron-vite leaves the renderer unminified by default. An Electron
+      // app parses its bundle from disk on every cold start, so this is real
+      // startup time rather than transfer size.
+      minify: 'esbuild',
+      target: 'chrome128',
+      cssMinify: true,
+      chunkSizeWarningLimit: 700,
       rollupOptions: {
         input: {
           index: resolve('src/renderer/index.html'),
           overlay: resolve('src/renderer/overlay.html')
+        },
+        output: {
+          // Keep the framework in its own chunk so a page-level change does not
+          // invalidate it, and so the overlay entry never pulls it in.
+          manualChunks(id) {
+            if (id.includes('node_modules/react') || id.includes('node_modules/scheduler')) {
+              return 'framework';
+            }
+            return undefined;
+          }
         }
       }
     }
