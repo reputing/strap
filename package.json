@@ -1,0 +1,42 @@
+{
+  "name": "blossom-strap",
+  "version": "0.1.0",
+  "description": "Blossom Strap — a Roblox launcher, optimizer and asset laboratory for Windows.",
+  "private": true,
+  "license": "MIT",
+  "author": "Blossom Strap",
+  "main": "./out/main/index.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "npm run typecheck && electron-vite build",
+    "preview": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "package:win": "npm run build && electron-builder --win --x64 --publish never",
+    "rebuild": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "node-forge": "^1.3.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.10.0",
+    "@types/node-forge": "^1.3.11",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "electron": "^33.3.0",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^2.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}
