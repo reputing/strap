@@ -36,9 +36,11 @@ export function loadSqlite(log: ScopedLogger): DatabaseFactory | null {
   try {
     // eslint-disable-next-line @typescript-eslint/no-var-requires
     const mod = require('better-sqlite3') as new (path: string, opts?: unknown) => Database;
+    const binding = nativeBindingPath();
+    const options = binding ? { nativeBinding: binding } : undefined;
     return {
       open(path: string) {
-        const db = new mod(path);
+        const db = new mod(path, options);
         // WAL keeps readers from blocking the writer, which matters because the
         // capture ingester writes while the cache browser reads.
         db.pragma('journal_mode = WAL');
@@ -51,6 +53,29 @@ export function loadSqlite(log: ScopedLogger): DatabaseFactory | null {
     log.error('The SQLite module could not be loaded; the asset index is unavailable', {
       reason: e instanceof Error ? e.message : String(e)
     });
+    return null;
+  }
+}
+
+/**
+ * The binary in the usual place is built for Electron's ABI, which is not the
+ * ABI of the Node that runs the tests and tools. `npm install` keeps a second
+ * copy for them (tools/prepare-native.mjs); outside Electron, point at it.
+ *
+ * Returns null when the default binary is the right one, which is every case
+ * that matters to a shipped build.
+ */
+export function nativeBindingPath(): string | null {
+  if (process.versions['electron']) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { dirname, join } = require('node:path') as typeof import('node:path');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const { existsSync } = require('node:fs') as typeof import('node:fs');
+    const moduleRoot = dirname(require.resolve('better-sqlite3/package.json'));
+    const binding = join(moduleRoot, 'build', 'Release-node', 'better_sqlite3.node');
+    return existsSync(binding) ? binding : null;
+  } catch {
     return null;
   }
 }

@@ -11,9 +11,15 @@ files:
   - package.json
   - '!**/*.map'
   - '!node_modules/**/{test,__tests__,tests,example,examples,doc,docs}/**'
+  # The tests' copy of the SQLite binary, built for Node's ABI rather than
+  # Electron's. The app would never load it, so it is not worth shipping.
+  - '!**/node_modules/better-sqlite3/build/Release-node/**'
 
-# better-sqlite3 is native and must be rebuilt against Electron's ABI.
-npmRebuild: true
+# better-sqlite3 is native, but `npm install` already put an Electron-ABI
+# binary in place (tools/prepare-native.mjs downloads the published one), so
+# packaging has nothing to build. Leaving this on would invoke node-gyp and
+# demand a C++ toolchain to produce the binary that is already there.
+npmRebuild: false
 asar: true
 asarUnpack:
   - '**/node_modules/better-sqlite3/**'

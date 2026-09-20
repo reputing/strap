@@ -2,6 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 import type { ScopedLogger } from '@main/core/logger';
 import { ensureDir, readJsonSafe, writeJsonAtomic } from '@main/core/fs-utils';
+import { nativeBindingPath } from './database';
 
 interface ProbeRecord {
   /** The Node ABI of the runtime that ran the probe. */
@@ -26,10 +27,10 @@ interface ProbeRecord {
  * handles. The answer is cached against the runtime's ABI, so this costs one
  * child process per Electron version rather than one per start.
  *
- * In a normal installation this always passes: electron-builder rebuilds native
- * modules against Electron's ABI at packaging time. It is the abnormal cases —
- * a half-finished update, a module restored from a backup, a developer who
- * skipped the rebuild — that this turns from a crash into a message.
+ * In a normal installation this always passes: `npm install` downloads the
+ * binary built for Electron's ABI. It is the abnormal cases — a half-finished
+ * update, a module restored from a backup, an install that could not reach the
+ * download — that this turns from a crash into a message.
  */
 export async function probeNativeSqlite(
   rootDirectory: string,
@@ -69,10 +70,14 @@ export async function probeNativeSqlite(
  * process has.
  */
 function runProbe(): { ok: boolean; detail: string } {
+  // Outside Electron the probe must open the same binary the storage layer
+  // will, or it would test the one built for the other runtime's ABI.
+  const binding = nativeBindingPath();
+  const options = binding ? `, { nativeBinding: ${JSON.stringify(binding)} }` : '';
   const script = `
     try {
       const Database = require('better-sqlite3');
-      const db = new Database(':memory:');
+      const db = new Database(':memory:'${options});
       db.exec('CREATE TABLE probe (id INTEGER PRIMARY KEY, value TEXT)');
       db.prepare('INSERT INTO probe (value) VALUES (?)').run('blossom');
       const row = db.prepare('SELECT value FROM probe').get();

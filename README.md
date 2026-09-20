@@ -60,24 +60,28 @@ boundaries and where they are enforced.
 ## Building
 
 ```bash
-npm install          # also rebuilds native modules against Electron's ABI
+npm install          # also downloads the native binaries; no compiler needed
 npm run dev          # development, with hot reload
-npm test             # 190 tests
+npm test             # 200 tests
 npm run typecheck
 npm run build        # production bundles into out/
 npm run package:win  # NSIS installer into release/
 ```
 
-Requires Node 20+. The installer is per-user and runs `asInvoker`: Blossom never
-needs administrator rights, because everything it changes is in your own profile
-or in Roblox's own folder.
+Requires Node 22+ and nothing else — no Visual Studio, no Windows SDK, no
+Python. The installer is per-user and runs `asInvoker`: Blossom never needs
+administrator rights, because everything it changes is in your own profile or in
+Roblox's own folder.
 
-> **Native module note.** `better-sqlite3` must be built against Electron's ABI,
-> not Node's. `npm run package:win` handles this. If you run the app from source
-> and see "the asset index is unavailable", run `npx electron-rebuild -f -w
-> better-sqlite3`. Blossom detects the mismatch in a child process and degrades
-> to "cache unavailable" rather than crashing — see
-> `src/main/storage/native-probe.ts` for why that check exists.
+> **Native module note.** `better-sqlite3` is native, and Electron's Node ABI is
+> not the ABI of the Node that runs the tests, so one build of it can never suit
+> both. `npm install` downloads the published binary for each
+> (`tools/prepare-native.mjs`) and keeps them side by side; `npm run rebuild`
+> fetches them again, which is what to run after changing the Electron version.
+> If neither can be had — an offline machine, an unusual platform — the install
+> still succeeds and Blossom degrades to "the asset index is unavailable" rather
+> than crashing. See `src/main/storage/native-probe.ts` for why that check
+> exists.
 
 ---
 
